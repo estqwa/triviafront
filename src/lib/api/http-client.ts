@@ -45,7 +45,7 @@ export async function request<T, B = unknown>(
   body?: B,
   options: RequestOptions = {}
 ): Promise<T> {
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'; // Убедитесь, что переменная окружения установлена
+  const baseUrl = 'https://triviabackend-jp8r.onrender.com'; // Используем жестко заданный URL
   let url = `${baseUrl}${endpoint}`;
 
   const config: RequestInit = {

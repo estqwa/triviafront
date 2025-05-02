@@ -376,7 +376,7 @@ export default function LiveQuizPage() {
         wsRef.current.close();
       }
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsHost = process.env.NEXT_PUBLIC_API_URL?.replace(/^https?:\/\//, '') || 'localhost:8080';
+      const wsHost = 'triviabackend-jp8r.onrender.com'; // Используем жестко заданный хост
       // --- Используем основной эндпоинт /ws и передаем тикет --- 
       const wsUrl = `${protocol}//${wsHost}/ws?ticket=${wsTicket}`;
       console.log(`Connecting to WebSocket: ${wsUrl}`);
