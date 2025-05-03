@@ -399,8 +399,11 @@ export default function LiveQuizPage() {
         wsRef.current.close(1000, 'Client reconnecting'); // Закрываем с кодом 1000
       }
 
-      const protocol = process.env.NODE_ENV === 'production' || window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      // --- ИСПРАВЛЕНИЕ ПРОТОКОЛА --- 
       const wsHost = process.env.NEXT_PUBLIC_WS_HOST || 'triviabackend-jp8r.onrender.com'; // Используем переменную окружения или дефолт
+      // Всегда используем wss:// для Render.com, независимо от окружения
+      const protocol = (wsHost.includes('onrender.com') || process.env.NODE_ENV === 'production') ? 'wss:' : 'ws:'; 
+      
       const wsUrl = `${protocol}//${wsHost}/ws?ticket=${wsTicket}`;
       console.log(`[connectWebSocket] Attempting to connect to: ${wsUrl}`);
 
@@ -518,13 +521,12 @@ export default function LiveQuizPage() {
       }
     };
   // Зависимости: wsTicket (для подключения), 
-  // fetchWsTicket (хотя он используется только в начальном получении тикета, но для полноты), 
   // handleWebSocketMessage, sendHeartbeat (для обработчиков), 
   // clearQuestionTimer, clearCountdownTimer (для onclose)
   // reconnectAttempts НЕ НУЖНО добавлять в зависимости основного useEffect, 
   // так как он изменяется внутри setTimeout и используется для контроля переподключений в onclose.
   // Добавление его сюда вызовет лишние запуски connectWebSocket.
-  }, [wsTicket, /*fetchWsTicket,*/ handleWebSocketMessage, sendHeartbeat, clearQuestionTimer, clearCountdownTimer]);
+  }, [wsTicket, handleWebSocketMessage, sendHeartbeat, clearQuestionTimer, clearCountdownTimer]);
   
   // --- Функция для временных ошибок --- 
   const setTemporaryError = (message: string, duration: number = 5000) => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode, useCallback, useMemo } from 'react';
 import { User, loginUser, registerUser, logoutUser, getCurrentUser, refreshTokens, RegisterRequest, getWebSocketTicket, updateProfile, getCSRFToken } from '../api/auth';
 import { ApiError } from '../api/http-client';
 
@@ -64,8 +64,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
     checkAuthStatus();
   }, []);
 
+  // --- Функции контекста, обернутые в useCallback --- 
+
   // Функция для входа
-  const login = async (email: string, password: string) => {
+  const login = useCallback(async (email: string, password: string) => {
     try {
       setLoading(true);
       setError(null);
@@ -92,10 +94,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   // Функция для регистрации
-  const register = async (data: RegisterRequest) => {
+  const register = useCallback(async (data: RegisterRequest) => {
     try {
       setLoading(true);
       setError(null);
@@ -122,10 +124,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   // Функция для выхода
-  const logout = async () => {
+  const logout = useCallback(async () => {
     console.log("[AuthContext] Logout initiated. Current csrfToken state:", csrfToken);
     try {
       setLoading(true);
@@ -145,10 +147,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [csrfToken]);
 
   // Функция для обновления токенов
-  const refresh = async () => {
+  const refresh = useCallback(async () => {
     if (!csrfToken) {
       setError('Сессия недействительна, CSRF токен отсутствует. Пожалуйста, войдите снова.');
       setUser(null);
@@ -174,34 +176,38 @@ export function AuthProvider({ children }: AuthProviderProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [csrfToken]);
 
   // Функция для очистки ошибок
-  const clearError = () => {
+  const clearError = useCallback(() => {
     setError(null);
-  };
+  }, []);
 
-  // Пример функции, использующей csrfToken
-  const fetchWsTicket = async (): Promise<string | null> => {
+  // Функция получения WS тикета
+  const fetchWsTicket = useCallback(async (): Promise<string | null> => {
     if (!isAuthenticated || !csrfToken) {
+      console.warn('[fetchWsTicket] Prerequisites not met:', { isAuthenticated, csrfToken: !!csrfToken });
       setError("Необходимо войти в систему для получения WS тикета.");
       return null;
     }
     try {
-      setLoading(true);
+      // setLoading(true); // Возможно, не стоит показывать загрузку для этого?
       setError(null);
+      console.log('[fetchWsTicket] Attempting to get ticket with CSRF:', csrfToken);
       const ticket = await getWebSocketTicket(csrfToken);
+      console.log('[fetchWsTicket] Ticket received:', ticket ? '******' : 'null');
       return ticket;
     } catch (err) {
+      console.error('[fetchWsTicket] Error getting WS ticket:', err);
       setError((err as ApiError).error || 'Ошибка получения WS тикета');
       return null;
     } finally {
-      setLoading(false);
+      // setLoading(false);
     }
-  };
+  }, [isAuthenticated, csrfToken]);
 
-  // Пример функции обновления профиля
-  const updateUserProfile = async (data: { username?: string; profile_picture?: string }) => {
+  // Функция обновления профиля
+  const updateUserProfile = useCallback(async (data: { username?: string; profile_picture?: string }) => {
     if (!isAuthenticated || !csrfToken) {
       setError("Необходимо войти в систему для обновления профиля.");
       throw new Error('User not authenticated or CSRF token missing');
@@ -210,18 +216,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setLoading(true);
       setError(null);
       await updateProfile(csrfToken, data);
-      if (user) {
-        setUser({ ...user, ...data });
-      }
+      setUser(prevUser => prevUser ? { 
+          ...prevUser, 
+          username: data.username ?? prevUser.username, 
+          profile_picture: data.profile_picture ?? prevUser.profile_picture 
+      } : null);
     } catch (err) {
       setError((err as ApiError).error || 'Ошибка обновления профиля');
       throw err;
     } finally {
       setLoading(false);
     }
-  };
+  }, [isAuthenticated, csrfToken]);
 
-  const value = {
+  // --- Мемоизированное значение контекста --- 
+  const value = useMemo(() => ({
     user,
     loading,
     error,
@@ -234,7 +243,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
     csrfToken,
     fetchWsTicket,
     updateUserProfile,
-  };
+  }), [
+    user,
+    loading,
+    error,
+    login,
+    register,
+    logout,
+    refresh,
+    clearError,
+    isAuthenticated,
+    csrfToken,
+    fetchWsTicket,
+    updateUserProfile,
+  ]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
