@@ -15,9 +15,10 @@ interface QuizLobbyProps {
   // Убираем onReady, так как пока не ясно, как он будет использоваться
   // onReady: () => void
   onReadyClick: () => void; // Добавляем колбэк для кнопки
+  playerCount: number; // <-- ДОБАВЛЯЕМ ПРОПС
 }
 
-export function QuizLobby({ quiz, onReadyClick }: QuizLobbyProps) {
+export function QuizLobby({ quiz, onReadyClick, playerCount }: QuizLobbyProps) {
   const [timeRemaining, setTimeRemaining] = useState("")
   const [progress, setProgress] = useState(0)
   const [isReady, setIsReady] = useState(false) // Оставляем локальное состояние готовности
@@ -107,8 +108,8 @@ export function QuizLobby({ quiz, onReadyClick }: QuizLobbyProps) {
               <div className="flex flex-col items-center p-3 rounded-xl bg-indigo-50">
                 <Users className="h-5 w-5 text-indigo-500 mb-1" />
                 <p className="text-gray-500 text-xs">Игроки</p>
-                 {/* Используем quiz.player_count */}
-                <p className="font-bold">{quiz.player_count || 0}</p>
+                 {/* Используем playerCount вместо quiz.player_count */}
+                <p className="font-bold">{playerCount}</p>
               </div>
 
               <div className="flex flex-col items-center p-3 rounded-xl bg-indigo-50">
@@ -142,8 +143,8 @@ export function QuizLobby({ quiz, onReadyClick }: QuizLobbyProps) {
               <CardTitle className="text-lg">Live Chat</CardTitle>
               <div className="flex items-center gap-1 text-sm text-gray-500">
                 <Users className="h-4 w-4" />
-                 {/* Используем quiz.player_count */}
-                <span>{quiz.player_count || 0} online</span>
+                 {/* Используем playerCount вместо quiz.player_count */}
+                <span>{playerCount} online</span>
               </div>
             </div>
           </CardHeader>

@@ -75,7 +75,7 @@ export function Header() {
                   <span>Войти</span>
                 </Button>
               </Link>
-              <Link href="/register">
+              <Link href="/login">
                 <Button className="bg-gradient-to-r from-violet-600 to-indigo-600 text-white">
                   Регистрация
                 </Button>

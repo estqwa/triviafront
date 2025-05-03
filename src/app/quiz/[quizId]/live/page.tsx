@@ -30,7 +30,8 @@ import {
   // ServerHeartbeatData
   UserReadyData,
   UserAnswerData,
-  UserHeartbeatData
+  UserHeartbeatData,
+  QuizPlayerCountUpdateData
 } from '@/types/websocket';
 
 // Shadcn UI & Framer Motion & Lucide
@@ -274,7 +275,6 @@ export default function LiveQuizPage() {
   }, []);
   const handleWaitingRoom = useCallback((data: QuizWaitingRoomData) => {
       console.log('Handling waiting room info:', data); 
-      setPlayerCount(data.player_count || 0);
       setQuizState('waiting');
   }, []);
   const handleCountdown = useCallback((data: QuizCountdownData) => {
@@ -291,7 +291,8 @@ export default function LiveQuizPage() {
     clearCountdownTimer();
     setQuizState('in_progress');
     setCurrentQuestion(data);
-    setCurrentQuestionNumber(data.question_number || 0);
+    setCurrentQuestionNumber(data.number || 0);
+    setQuestionCount(data.total_questions || 0);
     setAnswerSelected(null);
     setAnswerSubmitted(false);
     setAnswerResult(null);
@@ -346,6 +347,21 @@ export default function LiveQuizPage() {
   }, [loadResults, quizState]);
 
   const handleWebSocketMessage = useCallback((message: WsServerMessage) => {
+    if ('player_count' in message.data && message.data.player_count !== undefined) {
+      setPlayerCount(message.data.player_count);
+    }
+
+    if (message.type === 'quiz:player_count_update') {
+      const countData = message.data as QuizPlayerCountUpdateData;
+      if (typeof countData.player_count === 'number') {
+        setPlayerCount(countData.player_count);
+        console.log(`Player count updated via WebSocket: ${countData.player_count}`);
+      } else {
+        console.error("Invalid player_count received:", countData);
+      }
+      return;
+    }
+
     switch (message.type) {
       case 'quiz:announcement': handleAnnouncement(message.data); break;
       case 'quiz:waiting_room': handleWaitingRoom(message.data); break;
@@ -363,9 +379,6 @@ export default function LiveQuizPage() {
       case 'server:heartbeat': break;
       case 'error': handleError(message.data); break;
       default: return;
-    }
-    if ('player_count' in message.data && message.data.player_count !== undefined) {
-      setPlayerCount(message.data.player_count);
     }
   }, [handleAnnouncement, handleWaitingRoom, handleCountdown, handleQuizStart, handleQuizQuestion, handleTimerUpdate, handleAnswerReveal, handleAnswerResult, handleElimination, handleEliminationReminder, handleQuizFinish, handleResultsAvailable, handleUserReady, handleError]);
 
@@ -474,6 +487,7 @@ export default function LiveQuizPage() {
               {/* Используем обновленный компонент QuizLobby */}
               <QuizLobby 
                 quiz={quiz} 
+                playerCount={playerCount} // <-- ПЕРЕДАЕМ СОСТОЯНИЕ
                 onReadyClick={handleReadyClick} // Передаем обработчик клика
               />
             </motion.div>
