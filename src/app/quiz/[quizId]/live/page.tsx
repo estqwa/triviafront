@@ -82,6 +82,7 @@ export default function LiveQuizPage() {
   // const [quizAnnouncement, setQuizAnnouncement] = useState<QuizAnnouncementData | null>(null);
   // const [waitingRoomInfo, setWaitingRoomInfo] = useState<QuizWaitingRoomData | null>(null);
   const [showResultsButton, setShowResultsButton] = useState<boolean>(false);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [playerCount, _setPlayerCount] = useState<number>(0); // Используем _ для неиспользуемого сеттера
   const [isReadySent, setIsReadySent] = useState(false);
   const [resultsData, setResultsData] = useState<QuizResult[]>([]);
