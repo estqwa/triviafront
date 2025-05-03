@@ -82,7 +82,7 @@ export default function LiveQuizPage() {
   // const [quizAnnouncement, setQuizAnnouncement] = useState<QuizAnnouncementData | null>(null);
   // const [waitingRoomInfo, setWaitingRoomInfo] = useState<QuizWaitingRoomData | null>(null);
   const [showResultsButton, setShowResultsButton] = useState<boolean>(false);
-  const [playerCount, setPlayerCount] = useState<number>(0);
+  const [playerCount, _setPlayerCount] = useState<number>(0); // Используем _ для неиспользуемого сеттера
   const [isReadySent, setIsReadySent] = useState(false);
   const [resultsData, setResultsData] = useState<QuizResult[]>([]);
   const [resultsLoading, setResultsLoading] = useState<boolean>(false);
@@ -349,14 +349,14 @@ export default function LiveQuizPage() {
   const handleWebSocketMessage = useCallback((message: WsServerMessage) => {
     // --- ВРЕМЕННОЕ ИЗМЕНЕНИЕ: Комментируем обновление playerCount ---
     // if ('player_count' in message.data && message.data.player_count !== undefined) {
-    //   // setPlayerCount(message.data.player_count); // <--- ЗАКОММЕНТИРОВАНО
+    //   // setPlayerCount(message.data.player_count); <--- ЗАКОММЕНТИРОВАНО
     //   console.log("[DEBUG] Получен общий player count (проигнорирован):", message.data.player_count);
     // }
 
     if (message.type === 'quiz:player_count_update') {
       const countData = message.data as QuizPlayerCountUpdateData;
       if (typeof countData.player_count === 'number') {
-        // setPlayerCount(countData.player_count); // <--- ЗАКОММЕНТИРОВАНО
+        // setPlayerCount(countData.player_count); <--- ЗАКОММЕНТИРОВАНО
         console.log(`[DEBUG] Получено quiz:player_count_update (проигнорировано): ${countData.player_count}`);
       } else {
         console.error("Invalid player_count received:", countData);
