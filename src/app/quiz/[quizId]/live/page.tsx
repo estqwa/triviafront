@@ -347,20 +347,23 @@ export default function LiveQuizPage() {
   }, [loadResults, quizState]);
 
   const handleWebSocketMessage = useCallback((message: WsServerMessage) => {
-    if ('player_count' in message.data && message.data.player_count !== undefined) {
-      setPlayerCount(message.data.player_count);
-    }
+    // --- ВРЕМЕННОЕ ИЗМЕНЕНИЕ: Комментируем обновление playerCount ---
+    // if ('player_count' in message.data && message.data.player_count !== undefined) {
+    //   // setPlayerCount(message.data.player_count); // <--- ЗАКОММЕНТИРОВАНО
+    //   console.log("[DEBUG] Получен общий player count (проигнорирован):", message.data.player_count);
+    // }
 
     if (message.type === 'quiz:player_count_update') {
       const countData = message.data as QuizPlayerCountUpdateData;
       if (typeof countData.player_count === 'number') {
-        setPlayerCount(countData.player_count);
-        console.log(`Player count updated via WebSocket: ${countData.player_count}`);
+        // setPlayerCount(countData.player_count); // <--- ЗАКОММЕНТИРОВАНО
+        console.log(`[DEBUG] Получено quiz:player_count_update (проигнорировано): ${countData.player_count}`);
       } else {
         console.error("Invalid player_count received:", countData);
       }
-      return;
+      return; // Выходим для этого типа сообщения
     }
+    // --- КОНЕЦ ВРЕМЕННОГО ИЗМЕНЕНИЯ ---
 
     switch (message.type) {
       case 'quiz:announcement': handleAnnouncement(message.data); break;
