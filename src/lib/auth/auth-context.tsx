@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { User, loginUser, registerUser, logoutUser, getCurrentUser, refreshTokens, RegisterRequest, getWebSocketTicket, updateProfile, getCSRFToken } from '../api/auth';
 import { ApiError } from '../api/http-client';
 
@@ -64,8 +64,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
     checkAuthStatus();
   }, []);
 
-  // Функция для входа
-  const login = async (email: string, password: string) => {
+  // Функция для входа (оборачиваем в useCallback)
+  const login = useCallback(async (email: string, password: string) => {
     try {
       setLoading(true);
       setError(null);
@@ -92,10 +92,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, []); // <-- Пустой массив зависимостей, т.к. loginUser и getCSRFToken - импорты
 
-  // Функция для регистрации
-  const register = async (data: RegisterRequest) => {
+  // Функция для регистрации (оборачиваем в useCallback)
+  const register = useCallback(async (data: RegisterRequest) => {
     try {
       setLoading(true);
       setError(null);
@@ -122,10 +122,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, []); // <-- Пустой массив зависимостей
 
-  // Функция для выхода
-  const logout = async () => {
+  // Функция для выхода (оборачиваем в useCallback)
+  const logout = useCallback(async () => {
     console.log("[AuthContext] Logout initiated. Current csrfToken state:", csrfToken);
     try {
       setLoading(true);
@@ -145,10 +145,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [csrfToken]); // <-- Зависимость от csrfToken, т.к. он используется в logoutUser
 
-  // Функция для обновления токенов
-  const refresh = async () => {
+  // Функция для обновления токенов (оборачиваем в useCallback)
+  const refresh = useCallback(async () => {
     if (!csrfToken) {
       setError('Сессия недействительна, CSRF токен отсутствует. Пожалуйста, войдите снова.');
       setUser(null);
@@ -174,15 +174,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [csrfToken]); // <-- Зависимость от csrfToken
 
-  // Функция для очистки ошибок
-  const clearError = () => {
+  // Функция для очистки ошибок (оборачиваем в useCallback)
+  const clearError = useCallback(() => {
     setError(null);
-  };
+  }, []); // <-- Пустой массив зависимостей
 
-  // Пример функции, использующей csrfToken
-  const fetchWsTicket = async (): Promise<string | null> => {
+  // Функция для получения WS тикета (оборачиваем в useCallback)
+  const fetchWsTicket = useCallback(async (): Promise<string | null> => {
     if (!isAuthenticated || !csrfToken) {
       setError("Необходимо войти в систему для получения WS тикета.");
       return null;
@@ -198,10 +198,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [isAuthenticated, csrfToken]); // <-- Зависимости от isAuthenticated и csrfToken
 
-  // Пример функции обновления профиля
-  const updateUserProfile = async (data: { username?: string; profile_picture?: string }) => {
+  // Функция обновления профиля (оборачиваем в useCallback)
+  const updateUserProfile = useCallback(async (data: { username?: string; profile_picture?: string }) => {
     if (!isAuthenticated || !csrfToken) {
       setError("Необходимо войти в систему для обновления профиля.");
       throw new Error('User not authenticated or CSRF token missing');
@@ -219,7 +219,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [isAuthenticated, csrfToken, user]); // <-- Зависимости от isAuthenticated, csrfToken и user
 
   const value = {
     user,
