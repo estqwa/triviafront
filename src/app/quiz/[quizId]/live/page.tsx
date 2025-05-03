@@ -30,8 +30,7 @@ import {
   // ServerHeartbeatData
   UserReadyData,
   UserAnswerData,
-  UserHeartbeatData,
-  QuizPlayerCountUpdateData
+  UserHeartbeatData
 } from '@/types/websocket';
 
 // Shadcn UI & Framer Motion & Lucide
@@ -82,8 +81,7 @@ export default function LiveQuizPage() {
   // const [quizAnnouncement, setQuizAnnouncement] = useState<QuizAnnouncementData | null>(null);
   // const [waitingRoomInfo, setWaitingRoomInfo] = useState<QuizWaitingRoomData | null>(null);
   const [showResultsButton, setShowResultsButton] = useState<boolean>(false);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [playerCount, _setPlayerCount] = useState<number>(0); // Используем _ для неиспользуемого сеттера
+  const [playerCount, setPlayerCount] = useState<number>(0);
   const [isReadySent, setIsReadySent] = useState(false);
   const [resultsData, setResultsData] = useState<QuizResult[]>([]);
   const [resultsLoading, setResultsLoading] = useState<boolean>(false);
@@ -276,6 +274,7 @@ export default function LiveQuizPage() {
   }, []);
   const handleWaitingRoom = useCallback((data: QuizWaitingRoomData) => {
       console.log('Handling waiting room info:', data); 
+      setPlayerCount(data.player_count || 0);
       setQuizState('waiting');
   }, []);
   const handleCountdown = useCallback((data: QuizCountdownData) => {
@@ -292,8 +291,7 @@ export default function LiveQuizPage() {
     clearCountdownTimer();
     setQuizState('in_progress');
     setCurrentQuestion(data);
-    setCurrentQuestionNumber(data.number || 0);
-    setQuestionCount(data.total_questions || 0);
+    setCurrentQuestionNumber(data.question_number || 0);
     setAnswerSelected(null);
     setAnswerSubmitted(false);
     setAnswerResult(null);
@@ -348,24 +346,6 @@ export default function LiveQuizPage() {
   }, [loadResults, quizState]);
 
   const handleWebSocketMessage = useCallback((message: WsServerMessage) => {
-    // --- ВРЕМЕННОЕ ИЗМЕНЕНИЕ: Комментируем обновление playerCount ---
-    // if ('player_count' in message.data && message.data.player_count !== undefined) {
-    //   // setPlayerCount(message.data.player_count); <--- ЗАКОММЕНТИРОВАНО
-    //   console.log("[DEBUG] Получен общий player count (проигнорирован):", message.data.player_count);
-    // }
-
-    if (message.type === 'quiz:player_count_update') {
-      const countData = message.data as QuizPlayerCountUpdateData;
-      if (typeof countData.player_count === 'number') {
-        // setPlayerCount(countData.player_count); <--- ЗАКОММЕНТИРОВАНО
-        console.log(`[DEBUG] Получено quiz:player_count_update (проигнорировано): ${countData.player_count}`);
-      } else {
-        console.error("Invalid player_count received:", countData);
-      }
-      return; // Выходим для этого типа сообщения
-    }
-    // --- КОНЕЦ ВРЕМЕННОГО ИЗМЕНЕНИЯ ---
-
     switch (message.type) {
       case 'quiz:announcement': handleAnnouncement(message.data); break;
       case 'quiz:waiting_room': handleWaitingRoom(message.data); break;
@@ -383,6 +363,9 @@ export default function LiveQuizPage() {
       case 'server:heartbeat': break;
       case 'error': handleError(message.data); break;
       default: return;
+    }
+    if ('player_count' in message.data && message.data.player_count !== undefined) {
+      setPlayerCount(message.data.player_count);
     }
   }, [handleAnnouncement, handleWaitingRoom, handleCountdown, handleQuizStart, handleQuizQuestion, handleTimerUpdate, handleAnswerReveal, handleAnswerResult, handleElimination, handleEliminationReminder, handleQuizFinish, handleResultsAvailable, handleUserReady, handleError]);
 
@@ -491,7 +474,6 @@ export default function LiveQuizPage() {
               {/* Используем обновленный компонент QuizLobby */}
               <QuizLobby 
                 quiz={quiz} 
-                playerCount={playerCount} // <-- ПЕРЕДАЕМ СОСТОЯНИЕ
                 onReadyClick={handleReadyClick} // Передаем обработчик клика
               />
             </motion.div>

@@ -75,12 +75,11 @@ export interface OptionData {
 export interface QuizQuestionData {
   quiz_id: number;
   question_id: number;
-  number: number;
+  question_number: number; // Номер вопроса (из question_manager.go)
   text: string;
   options: OptionData[];
-  time_limit_sec: number;
-  total_questions: number;
-  player_count?: number;
+  time_limit_sec: number; // Время на ответ в секундах (из entity.Question и question_manager.go)
+  player_count?: number; // Добавлено
 }
 
 // Обновление таймера вопроса
@@ -157,12 +156,6 @@ export interface ErrorData {
   critical?: boolean; // Указывает, нужно ли разрывать соединение
 }
 
-// --- НОВОЕ: Данные для обновления счетчика игроков ---
-export interface QuizPlayerCountUpdateData {
-  quiz_id: number;
-  player_count: number;
-}
-
 // --- Общий тип для сообщений от сервера --- 
 export type WsServerMessage =
   | { type: 'quiz:announcement', data: QuizAnnouncementData }
@@ -178,7 +171,6 @@ export type WsServerMessage =
   | { type: 'quiz:elimination', data: QuizEliminationData }
   | { type: 'quiz:elimination_reminder', data: QuizEliminationReminderData }
   | { type: 'quiz:user_ready', data: QuizUserReadyData } // Ответ от сервера на готовность?
-  | { type: 'quiz:player_count_update', data: QuizPlayerCountUpdateData }
   | { type: 'server:heartbeat', data: ServerHeartbeatData }
   | { type: 'error', data: ErrorData };
 
