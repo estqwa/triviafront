@@ -215,8 +215,20 @@ export default function LiveQuizPage() {
 
   // Оборачиваем sendHeartbeat в useCallback
   const sendHeartbeat = useCallback(() => {
-      sendMessage('user:heartbeat', {});
-  }, []);
+      // Используем локальную функцию sendMessage внутри useCallback
+      const localSendMessage = (type: string, data: ClientMessageData = {}) => {
+          if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+              const message = JSON.stringify({ type, data });
+              console.log('Sending WS Heartbeat:', message);
+              wsRef.current.send(message);
+              return true;
+          } else {
+              console.warn('WebSocket not open, cannot send heartbeat');
+              return false;
+          }
+      };
+      localSendMessage('user:heartbeat', {});
+  }, []); // Зависимостей нет, так как sendMessage определена локально
 
   // --- Функция загрузки результатов (Оборачиваем в useCallback) --- 
   const loadResults = useCallback(async () => {
@@ -237,7 +249,7 @@ export default function LiveQuizPage() {
   // --- Рендеринг UI --- 
 
   // Верхняя панель (стили из quizlive)
-  const QuizTopBar = () => (
+  const QuizTopBar = useCallback(() => (
     <div className="bg-white/80 backdrop-blur-sm border-b border-gray-200 py-2 sticky top-0 z-40">
       <div className="container flex justify-between items-center">
         <div className="text-sm font-medium">
@@ -249,10 +261,10 @@ export default function LiveQuizPage() {
         </div>
       </div>
     </div>
-  );
+  ), [currentQuestionNumber, questionCount, playerCount]); // Добавляем зависимости
 
   // Модифицированная функция, вызываемая из QuizLobby
-  const handleReadyClick = () => {
+  const handleReadyClick = useCallback(() => {
     if (!isReadySent && quizIdNum > 0) {
         if (sendMessage('user:ready', { quiz_id: quizIdNum })) {
             setIsReadySent(true);
@@ -265,7 +277,7 @@ export default function LiveQuizPage() {
       console.error('Cannot send ready message: Quiz ID is not valid.');
       setTemporaryError('Ошибка: Некорректный ID викторины.');
     }
-  };
+  }, [isReadySent, quizIdNum /* sendMessage не добавляем, т.к. он стабилен */]);
 
   // --- Обработчики сообщений WS --- 
   const handleAnnouncement = useCallback((data: QuizAnnouncementData) => {
@@ -345,7 +357,13 @@ export default function LiveQuizPage() {
       if(quizState !== 'completed') loadResults();
   }, [loadResults, quizState]);
 
+  // --- Основной обработчик сообщений (Оборачиваем в useCallback) --- 
   const handleWebSocketMessage = useCallback((message: WsServerMessage) => {
+    console.log('[handleWebSocketMessage] Received:', message.type, message.data);
+    // Обновляем playerCount универсально, если он есть в данных
+    if ('player_count' in message.data && message.data.player_count !== undefined) {
+      setPlayerCount(message.data.player_count);
+    }
     switch (message.type) {
       case 'quiz:announcement': handleAnnouncement(message.data); break;
       case 'quiz:waiting_room': handleWaitingRoom(message.data); break;
@@ -364,83 +382,149 @@ export default function LiveQuizPage() {
       case 'error': handleError(message.data); break;
       default: return;
     }
-    if ('player_count' in message.data && message.data.player_count !== undefined) {
-      setPlayerCount(message.data.player_count);
-    }
   }, [handleAnnouncement, handleWaitingRoom, handleCountdown, handleQuizStart, handleQuizQuestion, handleTimerUpdate, handleAnswerReveal, handleAnswerResult, handleElimination, handleEliminationReminder, handleQuizFinish, handleResultsAvailable, handleUserReady, handleError]);
 
+  // --- useEffect для установки/закрытия WebSocket соединения (САМЫЙ ВАЖНЫЙ) --- 
   useEffect(() => {
+    // Оборачиваем connectWebSocket в useCallback, чтобы ссылка была стабильной
     const connectWebSocket = () => {
-      if (!wsTicket) return;
-      if (wsRef.current && wsRef.current.readyState !== WebSocket.CLOSED) {
-        wsRef.current.close();
+      if (!wsTicket) {
+        console.log('[connectWebSocket] No WS ticket available, skipping connection attempt.');
+        return; // Не можем подключиться без тикета
       }
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsHost = 'triviabackend-jp8r.onrender.com'; // Используем жестко заданный хост
-      // --- Используем основной эндпоинт /ws и передаем тикет --- 
+
+      if (wsRef.current && wsRef.current.readyState !== WebSocket.CLOSED) {
+        console.log('[connectWebSocket] Closing existing WebSocket connection before reconnecting.');
+        wsRef.current.onclose = null; // Убираем старый обработчик, чтобы он не сработал при ручном закрытии
+        wsRef.current.close(1000, 'Client reconnecting'); // Закрываем с кодом 1000
+      }
+
+      const protocol = process.env.NODE_ENV === 'production' || window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsHost = process.env.NEXT_PUBLIC_WS_HOST || 'triviabackend-jp8r.onrender.com'; // Используем переменную окружения или дефолт
       const wsUrl = `${protocol}//${wsHost}/ws?ticket=${wsTicket}`;
-      console.log(`Connecting to WebSocket: ${wsUrl}`);
-      const ws = new WebSocket(wsUrl);
-      wsRef.current = ws;
-      ws.onopen = () => {
-        console.log('WebSocket connection established');
-        setReconnectAttempts(0);
-        sendHeartbeat();
-        if (heartbeatIntervalRef.current) clearInterval(heartbeatIntervalRef.current);
-        heartbeatIntervalRef.current = setInterval(sendHeartbeat, 30000);
-      };
-      ws.onmessage = (event) => {
-        try {
-          const message: WsServerMessage = JSON.parse(event.data);
-          console.log('Received WS message:', message);
-          handleWebSocketMessage(message);
-        } catch (error) {
-          console.error('Failed to parse WebSocket message:', error);
-        }
-      };
-      ws.onerror = (event) => {
-        console.error('WebSocket error:', event);
-        setError('WebSocket connection error');
-      };
-      ws.onclose = (event: CloseEvent) => {
-        console.log(`WebSocket connection closed: Code=${event.code}, Reason=${event.reason}`);
-        if (heartbeatIntervalRef.current) clearInterval(heartbeatIntervalRef.current);
-        heartbeatIntervalRef.current = null;
-        clearQuestionTimer();
-        clearCountdownTimer();
-        if (event.code !== 1000 && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
-          const delay = Math.pow(2, reconnectAttempts) * 1000;
-          console.log(`Attempting to reconnect in ${delay / 1000} seconds...`);
-          setTimeout(() => {
-            setReconnectAttempts(prev => prev + 1);
-            fetchWsTicket().then((ticket: string | null) => {
-                if (ticket) setWsTicket(ticket);
-                else setError('Failed to get new WebSocket ticket for reconnection.');
-            }).catch((err: unknown) => {
-                setError('Error getting new WebSocket ticket for reconnection.');
-                if (err instanceof Error) {
-                    console.error('Reconnection ticket error:', err.message);
-                } else {
-                    console.error('Reconnection ticket error:', err);
-                }
-            });
-          }, delay);
-        } else if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
-            setError('Max WebSocket reconnection attempts reached.');
-        }
-      };
+      console.log(`[connectWebSocket] Attempting to connect to: ${wsUrl}`);
+
+      try {
+        const ws = new WebSocket(wsUrl);
+        wsRef.current = ws; // Сохраняем ссылку на новый сокет
+
+        ws.onopen = () => {
+          console.log('[WebSocket OnOpen] Connection established successfully.');
+          setReconnectAttempts(0); // Сбрасываем счетчик попыток при успешном соединении
+          sendHeartbeat(); // Отправляем первый heartbeat
+          // Устанавливаем интервал для heartbeat
+          if (heartbeatIntervalRef.current) clearInterval(heartbeatIntervalRef.current);
+          heartbeatIntervalRef.current = setInterval(sendHeartbeat, 30000); // 30 секунд
+          console.log('[WebSocket OnOpen] Heartbeat interval started.');
+        };
+
+        ws.onmessage = (event) => {
+          try {
+            const message: WsServerMessage = JSON.parse(event.data as string);
+            // Не логируем здесь каждое сообщение, чтобы не засорять консоль
+            // console.log('[WebSocket OnMessage] Received data:', message);
+            handleWebSocketMessage(message); // Передаем в мемоизированный обработчик
+          } catch (error) {
+            console.error('[WebSocket OnMessage] Failed to parse message:', event.data, error);
+          }
+        };
+
+        ws.onerror = (event) => {
+          // Более подробное логирование ошибки
+          console.error('[WebSocket OnError] An error occurred:', event);
+          // Пытаемся получить больше деталей, если возможно
+          if (event instanceof ErrorEvent) {
+              console.error(`[WebSocket OnError] Message: ${event.message}, Filename: ${event.filename}, Lineno: ${event.lineno}, Colno: ${event.colno}`);
+          }
+          // Не устанавливаем общую ошибку здесь, т.к. onclose обработает переподключение
+          // setError('WebSocket connection error occurred.');
+        };
+
+        ws.onclose = (event: CloseEvent) => {
+          // Подробное логирование закрытия
+          console.log(`[WebSocket OnClose] Connection closed. Code: ${event.code}, Reason: '${event.reason}', Was Clean: ${event.wasClean}`);
+
+          // Очищаем интервал heartbeat
+          if (heartbeatIntervalRef.current) {
+            clearInterval(heartbeatIntervalRef.current);
+            heartbeatIntervalRef.current = null;
+            console.log('[WebSocket OnClose] Heartbeat interval cleared.');
+          }
+          // Очищаем таймеры вопросов и обратного отсчета
+          clearQuestionTimer();
+          clearCountdownTimer();
+
+          // Логика переподключения
+          // Код 1000: Нормальное закрытие (OK)
+          // Код 1001: Уход со страницы (OK)
+          // Код 1005: No Status Rcvd (часто при потере сети, нужно переподключаться)
+          // Код 1006: Abnormal Closure (часто при разрыве сети/прокси, нужно переподключаться)
+          // Другие коды: Возможно ошибки сервера или клиента
+          if (event.code !== 1000 && event.code !== 1001 && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+            const delay = Math.pow(2, reconnectAttempts) * 1000; // Экспоненциальная задержка
+            console.warn(`[WebSocket OnClose] Abnormal closure (code ${event.code}). Attempting to reconnect in ${delay / 1000}s... (Attempt ${reconnectAttempts + 1}/${MAX_RECONNECT_ATTEMPTS})`);
+            
+            setTimeout(() => {
+              console.log(`[WebSocket Reconnect] Executing reconnect attempt ${reconnectAttempts + 1}...`);
+              setReconnectAttempts(prev => prev + 1); // Увеличиваем счетчик
+              // !!! ИСПРАВЛЕНИЕ: Не запрашиваем новый тикет! Вызываем connectWebSocket, 
+              // который использует ТЕКУЩИЙ wsTicket из состояния. 
+              // Если ТЕКУЩИЙ тикет невалиден, connectWebSocket не сможет подключиться,
+              // и onclose снова сработает (возможно, с другим кодом).
+              connectWebSocket(); // Повторный вызов этой же функции
+            }, delay);
+
+          } else if (event.code === 1000 || event.code === 1001) {
+            console.log('[WebSocket OnClose] Connection closed normally or due to navigation. No automatic reconnect needed.');
+            setReconnectAttempts(0); // Сбрасываем счетчик при нормальном закрытии
+          } else if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+            console.error(`[WebSocket OnClose] Max reconnection attempts (${MAX_RECONNECT_ATTEMPTS}) reached. Stopping reconnection attempts.`);
+            setError('Не удалось восстановить соединение с сервером после нескольких попыток.');
+          } else {
+            // Обработка других кодов закрытия, если нужно
+             console.warn(`[WebSocket OnClose] Unhandled close code ${event.code}. Stopping reconnection attempts.`);
+             setError(`Соединение закрыто с кодом ${event.code}.`);
+          }
+        };
+
+      } catch (error) {
+          console.error('[connectWebSocket] Failed to create WebSocket object:', error);
+          setError('Не удалось инициализировать WebSocket.');
+      }
     };
-    connectWebSocket();
+
+    // --- Вызов connectWebSocket при изменении тикета --- 
+    if (wsTicket) {
+        console.log('[useEffect wsTicket] wsTicket changed, calling connectWebSocket...');
+        connectWebSocket();
+    }
+
+    // --- Функция очистки при размонтировании компонента --- 
     return () => {
+      console.log('[useEffect Cleanup] Component unmounting or wsTicket changed. Cleaning up...');
       clearQuestionTimer();
       clearCountdownTimer();
-      if (heartbeatIntervalRef.current) clearInterval(heartbeatIntervalRef.current);
+      if (heartbeatIntervalRef.current) {
+         clearInterval(heartbeatIntervalRef.current);
+         heartbeatIntervalRef.current = null;
+         console.log('[useEffect Cleanup] Heartbeat interval cleared.');
+      }
       if (wsRef.current) {
-        console.log('Closing WebSocket connection on component unmount.');
-        wsRef.current.close(1000);
+        console.log('[useEffect Cleanup] Closing WebSocket connection with code 1000.');
+        // Убираем обработчик onclose перед закрытием, чтобы избежать логики переподключения при размонтировании
+        wsRef.current.onclose = null;
+        wsRef.current.close(1000, 'Component unmounted'); 
+        wsRef.current = null;
       }
     };
-  }, [wsTicket, fetchWsTicket, reconnectAttempts, handleWebSocketMessage, sendHeartbeat, clearQuestionTimer, clearCountdownTimer]);
+  // Зависимости: wsTicket (для подключения), 
+  // fetchWsTicket (хотя он используется только в начальном получении тикета, но для полноты), 
+  // handleWebSocketMessage, sendHeartbeat (для обработчиков), 
+  // clearQuestionTimer, clearCountdownTimer (для onclose)
+  // reconnectAttempts НЕ НУЖНО добавлять в зависимости основного useEffect, 
+  // так как он изменяется внутри setTimeout и используется для контроля переподключений в onclose.
+  // Добавление его сюда вызовет лишние запуски connectWebSocket.
+  }, [wsTicket, /*fetchWsTicket,*/ handleWebSocketMessage, sendHeartbeat, clearQuestionTimer, clearCountdownTimer]);
   
   // --- Функция для временных ошибок --- 
   const setTemporaryError = (message: string, duration: number = 5000) => {
