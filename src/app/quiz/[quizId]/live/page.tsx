@@ -92,7 +92,6 @@ export default function LiveQuizPage() {
   const MAX_RECONNECT_ATTEMPTS = 5;
   const [reconnectAttempts, setReconnectAttempts] = useState(0);
   const questionTimerIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const countdownTimerIntervalRef = useRef<NodeJS.Timeout | null>(null); // Ref для таймера starting
   const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null); // <-- Ref для heartbeat интервала
 
   // --- Функции clear/start таймеров (Оборачиваем в useCallback) --- 
@@ -120,34 +119,6 @@ export default function LiveQuizPage() {
         setTimeRemaining(0);
       }
   }, [clearQuestionTimer]); // <-- Добавляем clearQuestionTimer в зависимости
-
-  const clearCountdownTimer = useCallback(() => {
-    if (countdownTimerIntervalRef.current) {
-        clearInterval(countdownTimerIntervalRef.current);
-        countdownTimerIntervalRef.current = null;
-    }
-  }, []); // <-- Пустой массив зависимостей
-
-  const startCountdownTimer = useCallback((initialSeconds: number) => {
-    clearCountdownTimer(); // Используем мемоизированную версию
-    console.log(`[startCountdownTimer] Starting countdown from ${initialSeconds} seconds.`);
-    setCountdownSeconds(initialSeconds);
-    if(initialSeconds > 0) {
-        countdownTimerIntervalRef.current = setInterval(() => {
-            setCountdownSeconds(prev => {
-                console.log(`[Countdown Interval] Tick: prev=${prev}`);
-                if (prev <= 1) {
-                    console.log('[Countdown Interval] Clearing timer.');
-                    clearCountdownTimer(); // Используем мемоизированную версию
-                    return 0;
-                }
-                return prev - 1;
-            });
-        }, 1000);
-    } else {
-        setCountdownSeconds(0); // Устанавливаем в 0, если initialSeconds <= 0
-    }
-  }, [clearCountdownTimer]); // <-- Добавляем clearCountdownTimer в зависимости
 
   // --- useEffect hooks for loading quiz details, getting WS ticket, and managing WS connection ---
   useEffect(() => {
@@ -297,27 +268,28 @@ export default function LiveQuizPage() {
   const handleCountdown = useCallback((data: QuizCountdownData) => {
       setQuizState('starting');
       // НЕ ЗАПУСКАТЬ ЛОКАЛЬНЫЙ ТАЙМЕР
-      // startCountdownTimer(data.seconds_left || 3); 
+      // startCountdownTimer(data.seconds_left || 3);
       // Просто обновить состояние значением с бэкенда
       console.log(`[handleCountdown] Updating countdown state to: ${data.seconds_left}`);
       setCountdownSeconds(data.seconds_left !== null && data.seconds_left !== undefined ? data.seconds_left : 0);
-      // Убедиться, что любой предыдущий *локальный* таймер обратного отсчета остановлен
-      // (на случай, если он был запущен как-то иначе, хотя не должен)
+      // REMOVE: Убедиться, что любой предыдущий *локальный* таймер обратного отсчета остановлен
+      /*
       if (countdownTimerIntervalRef.current) {
            console.log('[handleCountdown] Clearing potentially lingering countdown interval.');
            clearInterval(countdownTimerIntervalRef.current);
            countdownTimerIntervalRef.current = null;
       }
-  }, []);
+      */
+  }, []); // Зависимости не нужны, т.к. используются только setState
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const handleQuizStart = useCallback((_data: QuizStartData) => {
     console.log('[handleQuizStart] Received quiz:start message.');
-    clearCountdownTimer();
-  }, [clearCountdownTimer]);
+    // REMOVE: clearCountdownTimer();
+  }, [/* REMOVE: clearCountdownTimer */]);
   const handleQuizQuestion = useCallback((data: QuizQuestionData) => {
     console.log('[handleQuizQuestion] Received quiz:question message:', data);
     clearQuestionTimer();
-    clearCountdownTimer();
+    // REMOVE: clearCountdownTimer();
     setQuizState('in_progress');
     setCurrentQuestion(data);
     setCurrentQuestionNumber(data.question_number || 0);
@@ -326,7 +298,7 @@ export default function LiveQuizPage() {
     setAnswerResult(null);
     setRevealedCorrectOption(null);
     startQuestionTimer(data.time_limit_sec || 10);
-  }, [startQuestionTimer, clearQuestionTimer, clearCountdownTimer]);
+  }, [startQuestionTimer, clearQuestionTimer /* REMOVE: clearCountdownTimer */]);
   const handleTimerUpdate = useCallback((data: QuizTimerData) => {
       // Проверяем currentQuestion внутри, чтобы избежать зависимости
       setCurrentQuestion(prevQ => {
@@ -470,10 +442,10 @@ export default function LiveQuizPage() {
             heartbeatIntervalRef.current = null;
             console.log('[WebSocket OnClose] Heartbeat interval cleared.');
           }
-          // Очищаем таймеры вопросов и обратного отсчета
+          // Очищаем таймер вопроса
           clearQuestionTimer();
-          console.log("[WebSocket OnClose] Calling clearCountdownTimer.");
-          clearCountdownTimer();
+          // REMOVE: console.log("[WebSocket OnClose] Calling clearCountdownTimer.");
+          // REMOVE: clearCountdownTimer();
 
           // Логика переподключения
           // Код 1000: Нормальное закрытие (OK)
@@ -524,8 +496,8 @@ export default function LiveQuizPage() {
     return () => {
       console.log('[useEffect Cleanup] Component unmounting or wsTicket changed. Cleaning up...');
       clearQuestionTimer();
-      console.log("[useEffect Cleanup] Calling clearCountdownTimer.");
-      clearCountdownTimer();
+      // REMOVE: console.log("[useEffect Cleanup] Calling clearCountdownTimer.");
+      // REMOVE: clearCountdownTimer();
       if (heartbeatIntervalRef.current) {
          clearInterval(heartbeatIntervalRef.current);
          heartbeatIntervalRef.current = null;
@@ -535,17 +507,18 @@ export default function LiveQuizPage() {
         console.log('[useEffect Cleanup] Closing WebSocket connection with code 1000.');
         // Убираем обработчик onclose перед закрытием, чтобы избежать логики переподключения при размонтировании
         wsRef.current.onclose = null;
-        wsRef.current.close(1000, 'Component unmounted'); 
+        wsRef.current.close(1000, 'Component unmounted');
         wsRef.current = null;
       }
     };
   // Зависимости: wsTicket (для подключения), 
   // handleWebSocketMessage, sendHeartbeat (для обработчиков), 
-  // clearQuestionTimer, clearCountdownTimer (для onclose)
+  // clearQuestionTimer (для onclose)
   // reconnectAttempts НЕ НУЖНО добавлять в зависимости основного useEffect, 
   // так как он изменяется внутри setTimeout и используется для контроля переподключений в onclose.
   // Добавление его сюда вызовет лишние запуски connectWebSocket.
-  }, [wsTicket, handleWebSocketMessage, sendHeartbeat, clearQuestionTimer, clearCountdownTimer]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wsTicket, handleWebSocketMessage, sendHeartbeat, clearQuestionTimer /* REMOVE: clearCountdownTimer */]);
   
   // --- Функция для временных ошибок --- 
   const setTemporaryError = (message: string, duration: number = 5000) => {
