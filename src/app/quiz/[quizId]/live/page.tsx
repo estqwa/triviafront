@@ -80,7 +80,7 @@ export default function LiveQuizPage() {
   // const [quizAnnouncement, setQuizAnnouncement] = useState<QuizAnnouncementData | null>(null);
   // const [waitingRoomInfo, setWaitingRoomInfo] = useState<QuizWaitingRoomData | null>(null);
   const [showResultsButton, setShowResultsButton] = useState<boolean>(false);
-  const [playerCount, setPlayerCount] = useState<number>(0);
+  const [playerCount] = useState<number>(0);
   const [isReadySent, setIsReadySent] = useState(false);
   const [resultsData, setResultsData] = useState<QuizResult[]>([]);
   const [resultsLoading, setResultsLoading] = useState<boolean>(false);
