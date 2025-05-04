@@ -296,8 +296,19 @@ export default function LiveQuizPage() {
   }, []);
   const handleCountdown = useCallback((data: QuizCountdownData) => {
       setQuizState('starting');
-      startCountdownTimer(data.seconds_left || 3); // Используем мемоизированную версию
-  }, [startCountdownTimer]);
+      // НЕ ЗАПУСКАТЬ ЛОКАЛЬНЫЙ ТАЙМЕР
+      // startCountdownTimer(data.seconds_left || 3); 
+      // Просто обновить состояние значением с бэкенда
+      console.log(`[handleCountdown] Updating countdown state to: ${data.seconds_left}`);
+      setCountdownSeconds(data.seconds_left !== null && data.seconds_left !== undefined ? data.seconds_left : 0);
+      // Убедиться, что любой предыдущий *локальный* таймер обратного отсчета остановлен
+      // (на случай, если он был запущен как-то иначе, хотя не должен)
+      if (countdownTimerIntervalRef.current) {
+           console.log('[handleCountdown] Clearing potentially lingering countdown interval.');
+           clearInterval(countdownTimerIntervalRef.current);
+           countdownTimerIntervalRef.current = null;
+      }
+  }, []);
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const handleQuizStart = useCallback((_data: QuizStartData) => {
     console.log('[handleQuizStart] Received quiz:start message.');
