@@ -26,7 +26,6 @@ import {
   QuizTimerData,
   QuizAnswerRevealData,
   QuizUserReadyData,
-  QuizEliminationReminderData,
   // ServerHeartbeatData
   UserReadyData,
   UserAnswerData,
@@ -262,7 +261,6 @@ export default function LiveQuizPage() {
   }, []);
   const handleWaitingRoom = useCallback((data: QuizWaitingRoomData) => {
       console.log('Handling waiting room info:', data); 
-      setPlayerCount(data.player_count || 0);
       setQuizState('waiting');
   }, []);
   const handleCountdown = useCallback((data: QuizCountdownData) => {
@@ -292,12 +290,12 @@ export default function LiveQuizPage() {
     // REMOVE: clearCountdownTimer();
     setQuizState('in_progress');
     setCurrentQuestion(data);
-    setCurrentQuestionNumber(data.question_number || 0);
+    setCurrentQuestionNumber(data.number || 0);
     setAnswerSelected(null);
     setAnswerSubmitted(false);
     setAnswerResult(null);
     setRevealedCorrectOption(null);
-    startQuestionTimer(data.time_limit_sec || 10);
+    startQuestionTimer(data.time_limit || 10);
   }, [startQuestionTimer, clearQuestionTimer /* REMOVE: clearCountdownTimer */]);
   const handleTimerUpdate = useCallback((data: QuizTimerData) => {
       // Проверяем currentQuestion внутри, чтобы избежать зависимости
@@ -321,9 +319,6 @@ export default function LiveQuizPage() {
     setIsEliminated(true);
     setQuizState('eliminated'); 
   }, [clearQuestionTimer]);
-  const handleEliminationReminder = useCallback((data: QuizEliminationReminderData) => {
-      console.log(`Elimination reminder: ${data.message}`);
-  }, []);
   const handleUserReady = useCallback((data: QuizUserReadyData) => {
       console.log(`User ${data.user_id} is ready for quiz ${data.quiz_id}`);
   }, []);
@@ -349,10 +344,6 @@ export default function LiveQuizPage() {
   // --- Основной обработчик сообщений (Оборачиваем в useCallback) --- 
   const handleWebSocketMessage = useCallback((message: WsServerMessage) => {
     console.log('[handleWebSocketMessage] Received:', message.type, message.data);
-    // Обновляем playerCount универсально, если он есть в данных
-    if ('player_count' in message.data && message.data.player_count !== undefined) {
-      setPlayerCount(message.data.player_count);
-    }
     switch (message.type) {
       case 'quiz:announcement': handleAnnouncement(message.data); break;
       case 'quiz:waiting_room': handleWaitingRoom(message.data); break;
@@ -363,7 +354,6 @@ export default function LiveQuizPage() {
       case 'quiz:answer_reveal': handleAnswerReveal(message.data); break;
       case 'quiz:answer_result': handleAnswerResult(message.data); break;
       case 'quiz:elimination': handleElimination(message.data); break;
-      case 'quiz:elimination_reminder': handleEliminationReminder(message.data); break;
       case 'quiz:finish': handleQuizFinish(message.data); break;
       case 'quiz:results_available': handleResultsAvailable(message.data); break;
       case 'quiz:user_ready': handleUserReady(message.data); break;
@@ -371,7 +361,7 @@ export default function LiveQuizPage() {
       case 'error': handleError(message.data); break;
       default: return;
     }
-  }, [handleAnnouncement, handleWaitingRoom, handleCountdown, handleQuizStart, handleQuizQuestion, handleTimerUpdate, handleAnswerReveal, handleAnswerResult, handleElimination, handleEliminationReminder, handleQuizFinish, handleResultsAvailable, handleUserReady, handleError]);
+  }, [handleAnnouncement, handleWaitingRoom, handleCountdown, handleQuizStart, handleQuizQuestion, handleTimerUpdate, handleAnswerReveal, handleAnswerResult, handleElimination, handleQuizFinish, handleResultsAvailable, handleUserReady, handleError]);
 
   // --- useEffect для установки/закрытия WebSocket соединения (САМЫЙ ВАЖНЫЙ) --- 
   useEffect(() => {
@@ -599,7 +589,7 @@ export default function LiveQuizPage() {
               {/* Таймер вопроса (стили из quizlive) */} 
               <div className="mb-6 text-center">
                 <p className="text-sm text-gray-500 mb-1">Time remaining</p>
-                <Progress value={(timeRemaining / (currentQuestion.time_limit_sec || 10)) * 100} className="h-2 mb-1 quiz-timer-progress" /> 
+                <Progress value={(timeRemaining / (currentQuestion.time_limit || 10)) * 100} className="h-2 mb-1 quiz-timer-progress" /> 
                 <p className="text-sm font-mono font-bold">{timeRemaining}s</p>
               </div>
               
@@ -623,7 +613,7 @@ export default function LiveQuizPage() {
                   <AnswerResultCard
                     isCorrect={answerResult ? answerResult.is_correct : (revealedCorrectOption !== null && answerSelected === revealedCorrectOption ? true : false)}
                     points={answerResult?.points_earned || 0}
-                    time={answerResult?.time_taken_ms ? parseFloat((answerResult.time_taken_ms / 1000).toFixed(1)) : (timeRemaining === 0 ? currentQuestion.time_limit_sec : 0)} 
+                    time={answerResult?.time_taken_ms ? parseFloat((answerResult.time_taken_ms / 1000).toFixed(1)) : (timeRemaining === 0 ? currentQuestion.time_limit : 0)} 
                   />
                 </motion.div>
               )}
