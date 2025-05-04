@@ -360,8 +360,8 @@ export default function LiveQuizPage() {
   const handleResultsAvailable = useCallback((_data: QuizResultsAvailableData) => {
       console.log('Results are available!');
       setShowResultsButton(true); 
-      if(quizState !== 'completed') loadResults();
-  }, [loadResults, quizState]);
+      loadResults(); // Просто вызываем загрузку результатов
+  }, [loadResults]); // Убираем quizState из зависимостей
 
   // --- Основной обработчик сообщений (Оборачиваем в useCallback) --- 
   const handleWebSocketMessage = useCallback((message: WsServerMessage) => {
