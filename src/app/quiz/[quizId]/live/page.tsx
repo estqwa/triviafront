@@ -130,17 +130,22 @@ export default function LiveQuizPage() {
 
   const startCountdownTimer = useCallback((initialSeconds: number) => {
     clearCountdownTimer(); // Используем мемоизированную версию
+    console.log(`[startCountdownTimer] Starting countdown from ${initialSeconds} seconds.`);
     setCountdownSeconds(initialSeconds);
     if(initialSeconds > 0) {
         countdownTimerIntervalRef.current = setInterval(() => {
             setCountdownSeconds(prev => {
+                console.log(`[Countdown Interval] Tick: prev=${prev}`);
                 if (prev <= 1) {
+                    console.log('[Countdown Interval] Clearing timer.');
                     clearCountdownTimer(); // Используем мемоизированную версию
                     return 0;
                 }
                 return prev - 1;
             });
         }, 1000);
+    } else {
+        setCountdownSeconds(0); // Устанавливаем в 0, если initialSeconds <= 0
     }
   }, [clearCountdownTimer]); // <-- Добавляем clearCountdownTimer в зависимости
 
@@ -295,10 +300,11 @@ export default function LiveQuizPage() {
   }, [startCountdownTimer]);
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const handleQuizStart = useCallback((_data: QuizStartData) => {
-    console.log('Quiz Started!');
+    console.log('[handleQuizStart] Received quiz:start message.');
     clearCountdownTimer();
   }, [clearCountdownTimer]);
   const handleQuizQuestion = useCallback((data: QuizQuestionData) => {
+    console.log('[handleQuizQuestion] Received quiz:question message:', data);
     clearQuestionTimer();
     clearCountdownTimer();
     setQuizState('in_progress');
@@ -455,6 +461,7 @@ export default function LiveQuizPage() {
           }
           // Очищаем таймеры вопросов и обратного отсчета
           clearQuestionTimer();
+          console.log("[WebSocket OnClose] Calling clearCountdownTimer.");
           clearCountdownTimer();
 
           // Логика переподключения
@@ -506,6 +513,7 @@ export default function LiveQuizPage() {
     return () => {
       console.log('[useEffect Cleanup] Component unmounting or wsTicket changed. Cleaning up...');
       clearQuestionTimer();
+      console.log("[useEffect Cleanup] Calling clearCountdownTimer.");
       clearCountdownTimer();
       if (heartbeatIntervalRef.current) {
          clearInterval(heartbeatIntervalRef.current);
